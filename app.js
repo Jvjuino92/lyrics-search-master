@@ -5,26 +5,32 @@ const prevAndNextContainer = document.querySelector('#prev-and-next-container')
 
 const apiURL = `https://api.lyrics.ovh`
 
-const getMoreSongs = async url => {
-    const response = await fetch(`https://cors-anywhere.herokuapp.com/${url}`   )
-    const data = await response.json()
-
-    insertSongsIntoPage(data)
+const fetchData = async url => {
+    const response = await fetch(url)
+    return await response.json()
 }
 
-const insertSongsIntoPage = songsInfo => {
-    songsContainer.innerHTML = songsInfo.data.map(song => 
+const getMoreSongs = async url => {
+    const data = await fetchData(`https://cors-anywhere.herokuapp.com/${url}`)
+    insertSongsIntoPage(data)
+}
+const insertNextAndPrevButtons = ({ prev, next }) => {
+    prevAndNextContainer.innerHTML = `
+        ${prev ? `<button class="btn" onClick="getMoreSongs('${prev}')">Previous</button>` : ''}
+        ${next ? `<button class="btn" onClick="getMoreSongs('${next}')">Next</button>` : ''}
+    `
+}
+
+const insertSongsIntoPage = ({ prev, next, data }) => {
+    songsContainer.innerHTML = data.map(({ artist: { name }, title }) => 
         `<li class="song">
-            <span class="song-artist"><strong>${song.artist.name}</strong> - ${song.title}</span>
-            <button class="btn" data-artist="${song.artist.name}" data-song-title="${song.title}">See lyrics</button>
+            <span class="song-artist"><strong>${name}</strong> - ${title}</span>
+            <button class="btn" data-artist="${name}" data-song-title="${title}">See lyrics</button>
         </li>`
     ).join('')
 
-    if (songsInfo.prev || songsInfo.next) {
-        prevAndNextContainer.innerHTML = `
-            ${songsInfo.prev ? `<button class="btn" onClick="getMoreSongs('${songsInfo.prev}')">Previous</button>` : ''}
-            ${songsInfo.next ? `<button class="btn" onClick="getMoreSongs('${songsInfo.next}')">Next</button>` : ''}
-        `
+    if (prev || next) {
+        insertNextAndPrevButtons({ prev, next })
         return
     }
 
@@ -32,16 +38,16 @@ const insertSongsIntoPage = songsInfo => {
 }
 
 const fetchSongs = async term => {
-    const response = await fetch(`${apiURL}/suggest/${term}`)
-    const data = await response.json()
-
+    const data = await fetchData(`${apiURL}/suggest/${term}`)
     insertSongsIntoPage(data)
 }
 
-form.addEventListener('submit', event => {
+const handleFormSubmit = event => {
     event.preventDefault()
 
     const searchTerm = searchInput.value.trim()
+    searchInput.value = ''
+    searchInput.focus()
 
     if (!searchTerm) {
         songsContainer.innerHTML = `<li class="warning-message">Please insert a valid song or artist</li>`
@@ -49,17 +55,37 @@ form.addEventListener('submit', event => {
     }
 
     fetchSongs(searchTerm)
-})
+}
 
-songsContainer.addEventListener('click', event => {
+form.addEventListener('submit', handleFormSubmit)
+
+const insertLyricsIntoPage = ({ lyrics, artist, songTitle }) => {
+    songsContainer.innerHTML = `
+    <li class="lyrics-container">
+        <h2><strong>${songTitle}</strong> - ${artist}</h2>
+        <p class="lyrics">${lyrics}</p>
+    </li>
+`
+}
+
+const fetchLyrics = async (artist, songTitle) => {
+    const data = await fetchData(`${apiURL}/v1/${artist}/${songTitle}`)
+    const lyrics = data.lyrics.replace(/(\r\n|\r|\n)/g, '<br>')
+    insertLyricsIntoPage({ lyrics, artist, songTitle }) 
+}
+
+const handleSongsContainerClick = event => {
     const clickedElement = event.target
 
     if (clickedElement.tagName === 'BUTTON') {
         const artist = clickedElement.getAttribute('data-artist')
         const songTitle = clickedElement.getAttribute('data-song-title')
 
-        console.log({ artist, songTitle });
+        prevAndNextContainer.innerHTML = ''
+        fetchLyrics(artist, songTitle)
     }
-})
+}
+
+songsContainer.addEventListener('click', handleSongsContainerClick)
 
 // 52:18
